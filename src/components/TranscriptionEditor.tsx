@@ -1,10 +1,10 @@
 import React, { useRef, useEffect } from 'react';
 import { Save, Type, Check, X } from 'lucide-react';
+import { useTranscription } from '../contexts/TranscriptionContext';
 
 interface TranscriptionEditorProps {
   value: string;
   onChange: (value: string) => void;
-  onSave: () => void;
   fontSize?: number;
   verified?: boolean;
 }
@@ -12,26 +12,26 @@ interface TranscriptionEditorProps {
 export function TranscriptionEditor({
   value,
   onChange,
-  onSave,
   fontSize = 16,
-  verified
+  verified,
 }: TranscriptionEditorProps) {
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const { saveCurrentTranscription } = useTranscription();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        onSave();
+        saveCurrentTranscription();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onSave]);
+  }, [saveCurrentTranscription]);
 
   return (
-    <div className="bg-gray-900 rounded-lg p-6 shadow-xl border border-gray-800">
+    <div className="bg-gradient-to-b from-gray-900 to-gray-800 rounded-lg p-6 shadow-xl border border-gray-700/50 backdrop-blur-xl">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center space-x-4">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-2">
@@ -42,7 +42,7 @@ export function TranscriptionEditor({
                   editorRef.current.style.fontSize = `${fontSize + 2}px`;
                 }
               }}
-              className="text-gray-400 hover:text-white px-3 py-1 rounded bg-gray-700"
+              className="text-gray-400 hover:text-white px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 transition-colors"
             >
               A+
             </button>
@@ -52,15 +52,19 @@ export function TranscriptionEditor({
                   editorRef.current.style.fontSize = `${fontSize - 2}px`;
                 }
               }}
-              className="text-gray-400 hover:text-white px-3 py-1 rounded bg-gray-700"
+              className="text-gray-400 hover:text-white px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 transition-colors"
             >
               A-
             </button>
           </div>
           {verified !== undefined && (
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-              verified ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
-            }`}>
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                verified
+                  ? 'bg-green-600/20 text-green-400'
+                  : 'bg-red-600/20 text-red-400'
+              }`}
+            >
               {verified ? (
                 <>
                   <Check size={20} />
@@ -76,11 +80,11 @@ export function TranscriptionEditor({
           )}
         </div>
         <button
-          onClick={onSave}
-          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg transition-all transform hover:scale-105"
+          onClick={saveCurrentTranscription}
+          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg transition-all transform hover:scale-105 shadow-lg"
         >
           <Save size={20} />
-          <span>Save (Ctrl+S)</span>
+          <span>Save Current (Ctrl+S)</span>
         </button>
       </div>
       <textarea
