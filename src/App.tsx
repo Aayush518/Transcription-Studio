@@ -36,9 +36,9 @@ function App() {
     reader.onload = (e) => {
       try {
         let content = e.target?.result;
-        if (typeof content !== 'string') {
-          console.error('Invalid file content');
-          alert('Invalid file content. Please ensure the file contains text.');
+        if (typeof content !== 'string' || !content) {
+          console.error('Invalid file content', e.target?.result);
+           alert('Invalid file content. Please ensure the file contains text.');
           return;
         }
 
@@ -55,7 +55,8 @@ function App() {
           .map(line => line.trim())
           .filter(line => line.length > 0);
 
-        console.log('Number of lines found:', lines.length);
+          console.log('Number of lines found:', lines.length);
+
 
         const parsed = lines.map((line, index) => {
           try {
@@ -107,15 +108,21 @@ function App() {
       }
     };
 
-    reader.onerror = (error) => {
+     reader.onerror = (error) => {
       console.error('FileReader error:', error);
       alert('Error reading the file. Please try again.');
     };
 
-    // Try to read the file as UTF-8 text
-    reader.readAsText(file, 'UTF-8');
-  };
+    if(file){
+       // Try to read the file as UTF-8 text
+      reader.readAsText(file, 'UTF-8');
+    }
+    else {
+      console.error('No file found')
+       alert('No file found. Please select a valid file.');
+    }
 
+  };
   const handleAudioFilesSelect = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
