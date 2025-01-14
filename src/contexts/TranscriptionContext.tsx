@@ -13,13 +13,12 @@ interface TranscriptionContextType {
   transcriptions: Transcription[];
   currentIndex: number;
   originalFile: File | null;
+  setOriginalFile: (file: File | null) => void;
   editedText: string;
+  setEditedText: (text: string) => void;
   setTranscriptions: (transcriptions: Transcription[]) => void;
   setCurrentIndex: (index: number) => void;
-  setOriginalFile: (file: File | null) => void;
-  setEditedText: (text: string) => void;
   updateTranscription: (index: number, updates: Partial<Transcription>) => void;
-  saveTranscriptions: () => void;
   saveCurrentTranscription: () => void;
 }
 
@@ -30,6 +29,7 @@ export function TranscriptionProvider({ children }: { children: React.ReactNode 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [editedText, setEditedText] = useState('');
+  const [fileHandle, setFileHandle] = useState<FileSystemFileHandle | null>(null); // For File System Access API
 
   const updateTranscription = (index: number, updates: Partial<Transcription>) => {
     setTranscriptions((prev) => {
@@ -39,12 +39,18 @@ export function TranscriptionProvider({ children }: { children: React.ReactNode 
     });
   };
 
-  const saveCurrentTranscription = () => {
+  const saveCurrentTranscription = async () => {
     if (transcriptions.length === 0) {
       alert('No transcriptions to save.');
       return;
     }
 
+    if (!originalFile) {
+      alert('No original file found. Please upload a transcription file first.');
+      return;
+    }
+
+    // Update the current transcription
     const updatedTranscriptions = [...transcriptions];
     updatedTranscriptions[currentIndex] = {
       ...updatedTranscriptions[currentIndex],
@@ -53,73 +59,79 @@ export function TranscriptionProvider({ children }: { children: React.ReactNode 
     };
     setTranscriptions(updatedTranscriptions);
 
-    if (!originalFile) {
-      alert('No original file found. Please upload a transcription file first.');
-      return;
-    }
-
-    // Save to the original file
     const content = updatedTranscriptions
       .map((t) => `${t.audioPath}|${t.text}`)
       .join('\n');
 
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = originalFile.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      if ('showSaveFilePicker' in window) {
+        // Use File System Access API if supported
+        let handle = fileHandle;
+
+        if (!handle) {
+          // If no handle exists, ask the user to pick a file
+          handle = await window.showSaveFilePicker({
+            suggestedName: originalFile.name,
+            types: [
+              {
+                description: 'Text Files',
+                accept: { 'text/plain': ['.txt'] },
+              },
+            ],
+          });
+          setFileHandle(handle); // Store the handle for future saves
+        }
+
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+
+        alert('Transcription saved successfully!');
+      } else {
+        // Fallback for browsers without File System Access API
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = originalFile.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        alert('Transcription downloaded successfully.');
+      }
+    } catch (error) {
+      console.error('Error saving file:', error);
+      alert('Failed to save the file. Please try again.');
+    }
   };
 
-  const saveTranscriptions = () => {
-    if (transcriptions.length === 0) {
-      alert('No transcriptions to save.');
+  const setOriginalFileWithHandle = async (file: File | null) => {
+    if (!file) {
+      setOriginalFile(null);
+      setFileHandle(null);
       return;
     }
 
-    if (!originalFile) {
-      alert('No original file found. Please upload a transcription file first.');
-      return;
+    setOriginalFile(file);
+
+    if ('showOpenFilePicker' in window) {
+      try {
+        // Allow the user to select the file for persistent access
+        const [handle] = await window.showOpenFilePicker({
+          types: [
+            {
+              description: 'Text Files',
+              accept: { 'text/plain': ['.txt'] },
+            },
+          ],
+        });
+        setFileHandle(handle);
+      } catch (error) {
+        console.error('Error selecting file handle:', error);
+      }
     }
-
-    // Save main transcription file
-    const content = transcriptions
-      .map((t) => `${t.audioPath}|${t.text}`)
-      .join('\n');
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = originalFile.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    // Save verification data
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const csvContent =
-      'Audio File,Text,Verified,Remarks,Last Modified\n' +
-      transcriptions
-        .map(
-          (t) =>
-            `"${t.audioPath}","${t.text}","${t.verified}","${t.remarks}","${t.lastModified}"`
-        )
-        .join('\n');
-
-    const csvBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const csvUrl = URL.createObjectURL(csvBlob);
-    const csvLink = document.createElement('a');
-    csvLink.href = csvUrl;
-    csvLink.download = `verification_log_${timestamp}.csv`;
-    document.body.appendChild(csvLink);
-    csvLink.click();
-    document.body.removeChild(csvLink);
-    URL.revokeObjectURL(csvUrl);
   };
 
   return (
@@ -128,13 +140,12 @@ export function TranscriptionProvider({ children }: { children: React.ReactNode 
         transcriptions,
         currentIndex,
         originalFile,
+        setOriginalFile: setOriginalFileWithHandle,
         editedText,
+        setEditedText,
         setTranscriptions,
         setCurrentIndex,
-        setOriginalFile,
-        setEditedText,
         updateTranscription,
-        saveTranscriptions,
         saveCurrentTranscription,
       }}
     >
